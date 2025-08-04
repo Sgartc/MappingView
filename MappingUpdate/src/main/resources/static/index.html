@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>文件上传</title>
+    <!-- 先引入 jQuery -->
+    <script src="/layui/js/jquery-3.7.1.min.js"></script>
+    <!-- 再引入 Layui 资源 -->
+    <link rel="stylesheet" href="/layui/css/layui.css">
+</head>
+<body>
+<div class="layui-upload">
+    <button type="button" class="layui-btn" id="test1">+ 点此选择文件</button>
+    <!-- 移除“开始上传”按钮，因为改为自动上传 -->
+    <div class="layui-upload-list">
+        <table class="layui-table" style="table-layout: auto;">
+            <thead>
+            <tr><th>文件名</th><th>大小</th><th>状态</th><th>操作</th></tr>
+            </thead>
+            <tbody id="demoList"></tbody>
+        </table>
+    </div>
+</div>
+
+<script src="/layui/js/layui.js"></script>
+<script>
+    layui.use('upload', function(){
+        var upload = layui.upload;
+        var layer = layui.layer;
+
+        // 执行实例
+        var uploadInst = upload.render({
+            elem: '#test1' // 绑定选择文件的按钮
+            ,url: '/upload' // 后端上传接口（已修正为正确路径）
+            ,auto: true // 开启自动上传（选择文件后立即上传）
+            // 移除 bindAction 配置（无需手动点击上传按钮）
+            ,accept: 'file'
+            ,exts: 'sql|prc' // 限制仅.sql和.prc文件
+            // 新增MIME类型过滤（增强兼容性）
+            // ,acceptMime: 'application/sql,text/plain'
+            ,choose: function(obj){
+                console.log("文件已选择"); // 新增调试日志
+                // 选择文件后，先在表格中显示“上传中”状态
+                obj.preview(function(index, file, result){
+                    console.log("预览文件：", file); // 新增调试日志
+                    var tr = '<tr id="upload-'+ index +'">'
+                        + '<td>'+ file.name +'</td>'
+                        + '<td>'+ (file.size/1024).toFixed(1) +'kb</td>'
+                        + '<td><span style="color: #FFB800;">上传中</span></td>'
+                        // <!-- 添加样式：不换行 + 最小内边距 -->
+                        + '<td style="white-space: nowrap; padding: 6px 10px;">'
+                        // <!-- 预览按钮：空白色（默认） -->
+                        + '<button class="layui-btn layui-btn-radius layui-btn-sm" lay-event="preview">预览</button>'
+                        // <!-- 解析按钮：蓝色 -->
+                        + '<button class="layui-btn layui-btn-normal layui-btn-radius layui-btn-sm" lay-event="parse">解析</button>'
+                        // <!-- 解析结果查看：暖色 -->
+                        + '<button class="layui-btn layui-btn-warm layui-btn-radius layui-btn-sm" lay-event="viewResult">解析结果查看</button>'
+                        // <!-- 解析结果下载：暖色 -->
+                        + '<button class="layui-btn layui-btn-warm layui-btn-radius layui-btn-sm" lay-event="DownloadResult">解析结果下载</button>'
+                        // <!-- 原有移除按钮：红色（危险） -->
+                        + '<button class="layui-btn layui-btn-danger layui-btn-radius layui-btn-sm" lay-event="remove">移除</button>'
+                        + '</td>'
+                        + '</tr>';
+                    $('#demoList').append(tr);
+                });
+            }
+            ,done: function(res, index, upload){
+                // 上传成功后更新表格状态
+                if(res.code === 0){
+                    // 显示“上传成功”
+                    $('#upload-'+ index).find('td:eq(2)').html('<span style="color: #009688;">上传成功</span>');
+                    layer.msg(res.msg); // 显示后端返回的成功信息
+                } else {
+                    // 后端验证失败（如文件类型错误）
+                    $('#upload-'+ index).find('td:eq(2)').html('<span style="color: #F56C6C;">文件类型异常，上传失败</span>');
+                    layer.msg(res.msg); // 显示具体错误原因
+                }
+            }
+            ,error: function(index, upload){
+                // 后端验证失败，显示后端返回的具体原因
+                $('#upload-'+ index).find('td:eq(2)').html('<span style="color: #F56C6C;">上传失败</span>');
+                layer.msg(res.msg); // 直接使用后端返回的msg
+            }
+        });
+
+        // 给所有按钮绑定事件（在原有的事件绑定代码中扩展）
+        $('#demoList').on('click', 'button[lay-event]', function(){
+            var tr = $(this).closest('tr');
+            var index = tr.attr('id').split('-')[1];
+            var event = $(this).attr('lay-event'); // 获取事件类型
+
+            // 根据事件类型执行不同操作
+            switch(event) {
+                case 'preview':
+                    layer.msg('预览文件：' + tr.find('td:eq(0)').text());
+                    // 这里添加预览逻辑
+                    break;
+                case 'parse':
+                    layer.msg('开始解析文件：' + tr.find('td:eq(0)').text());
+                    // 这里添加解析逻辑
+                    break;
+                case 'viewResult':
+                    layer.msg('查看解析结果：' + tr.find('td:eq(0)').text());
+                    // 这里添加查看结果逻辑
+                    break;
+                case 'DownloadResult':
+                    layer.msg('解析结果下载：' + tr.find('td:eq(0)').text());
+                    // 这里添加查看结果逻辑
+                    break;
+                case 'remove':
+                    tr.remove(); // 移除行
+                    // 2. 可选：如果需要手动清除上传队列，可通过 Layui 内部方法（非公开API，谨慎使用）
+                    // 仅在必要时添加，通常删除DOM即可
+                    if (uploadInst.queue && uploadInst.queue[index]) {
+                        uploadInst.queue.splice(index, 1); // 从队列中移除
+                    }
+                    break;
+            }
+        });
+    });
+</script>
+</body>
+</html>
