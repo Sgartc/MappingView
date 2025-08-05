@@ -2,6 +2,7 @@ package com.mappingupdate.controller;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
@@ -67,5 +68,21 @@ public class FileUploadController {
         }
 
         return result;
+    }
+
+    @RequestMapping("/previewFile")
+    public Map<String, Object> previewFile(@RequestParam("fileName") String fileName){
+        Map<String, Object> result = new HashMap<>();
+        Map<String, Object> data = new HashMap<>();
+        fileUploadService.previewFile(result,fileName,data);
+        return result;
+    }
+
+    @RequestMapping("/parse")
+    public Map<String, Object> parse(@RequestParam("fileName") String fileName){
+        Map<String, Object> result = new HashMap<>();
+        Map<String, Object> data = new HashMap<>();
+        Map<String, Object> pythonResult=fileUploadService.parse(result,fileName,data);
+        return pythonResult;
     }
 }

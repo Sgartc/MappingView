@@ -42,9 +42,9 @@
                 console.log("文件已选择"); // 新增调试日志
                 // 选择文件后，先在表格中显示“上传中”状态
                 obj.preview(function(index, file, result){
-                    console.log("预览文件：", file); // 新增调试日志
+                    console.log("预览文件："+index +"file " , file); // 新增调试日志
                     var tr = '<tr id="upload-'+ index +'">'
-                        + '<td>'+ file.name +'</td>'
+                        + '<td id="name" >'+ file.name +'</td>'
                         + '<td>'+ (file.size/1024).toFixed(1) +'kb</td>'
                         + '<td><span style="color: #FFB800;">上传中</span></td>'
                         // <!-- 添加样式：不换行 + 最小内边距 -->
@@ -87,17 +87,21 @@
         $('#demoList').on('click', 'button[lay-event]', function(){
             var tr = $(this).closest('tr');
             var index = tr.attr('id').split('-')[1];
+            var name = tr.find('td:eq(0)').text();
             var event = $(this).attr('lay-event'); // 获取事件类型
 
             // 根据事件类型执行不同操作
             switch(event) {
                 case 'preview':
-                    layer.msg('预览文件：' + tr.find('td:eq(0)').text());
+                    layer.msg('预览文件：' + name);
                     // 这里添加预览逻辑
+                    console.log(name);
+                    previewFile(name);
                     break;
                 case 'parse':
                     layer.msg('开始解析文件：' + tr.find('td:eq(0)').text());
                     // 这里添加解析逻辑
+                    parse(name);
                     break;
                 case 'viewResult':
                     layer.msg('查看解析结果：' + tr.find('td:eq(0)').text());
@@ -117,6 +121,128 @@
                     break;
             }
         });
+        // 文件预览函数
+        function previewFile(name) {
+            // 显示加载动画
+            var loadingIndex = layer.load(2, {
+                shade: 0.3 // 遮罩透明度
+            });
+            // 发送请求到后端，传递文件名
+            $.ajax({
+                url: '/previewFile', // 后端处理预览的接口
+                type: 'POST',
+                data: {
+                    fileName: name // 传递文件名参数
+                },
+                dataType: 'json',
+                success: function(res) {
+                    // 关闭加载动画
+                    layer.close(loadingIndex);
+                    // 后端成功返回内容
+                    if (res.code === 0) {
+                        // 构建预览内容
+                        var previewContent = `
+                            <div style="padding: 15px; box-sizing: border-box; height: 100%;">
+                                <div style="margin-bottom: 10px; color: #666; font-size: 12px;">
+                                    文件名: ${name}
+                                </div>
+                                <pre style="margin: 0; padding: 10px; background: #f5f5f5; border-radius: 4px;
+                                          height: calc(100% - 30px); overflow: auto; font-family: monospace;
+                                          white-space: pre-wrap; word-break: break-all;">${res.data.content}</pre>
+                            </div>
+                        `;
+                        // 打开预览弹窗
+                        layer.open({
+                            type: 1,
+                            title: '文件预览: ' + name,
+                            area: ['90%', '80%'],
+                            content: previewContent,
+                            maxmin: true,
+                            shadeClose: false
+                        });
+                    } else {
+                        // 后端返回错误信息
+                        layer.msg(res.msg || '获取文件内容失败');
+                    }
+                },
+                error: function(xhr, status, error) {
+                    // 关闭加载动画
+                    layer.close(loadingIndex);
+                    // 网络错误处理
+                    layer.msg('请求失败，请检查网络或重试');
+                    console.error('预览请求错误:', error);
+                }
+            });
+        }
+        // 文件解析函数
+        function parse(fileName) {
+            // 创建加载层
+            var loadIndex = layer.load(2, {
+                shade: 0.3,
+                time: 0 // 不自动关闭
+            });
+            // 发送解析请求
+            $.ajax({
+                url: '/parse',
+                type: 'POST',
+                data: {
+                    fileName: fileName
+                },
+                dataType: 'json',
+                success: function(res) {
+                    layer.close(loadIndex); // 关闭加载层
+                    if (res.code === 0) {
+                        // 解析成功
+                        layer.open({
+                            type: 1,
+                            title: '解析成功',
+                            area: ['500px', '300px'],
+                            content: `
+                                <div style="padding: 20px;">
+                                    <p>文件解析成功！</p>
+                                    <p>生成的Excel文件路径：</p>
+                                    <p style="color: #009688; word-break: break-all;">${res.data.excelPath}</p>
+                                    <div style="margin-top: 20px;">
+                                        <button class="layui-btn layui-btn-normal" id="downloadExcel">下载Excel文件</button>
+                                    </div>
+                                </div>
+                            `,
+                            success: function(layero) {
+                                // 绑定下载按钮事件
+                                layero.find('#downloadExcel').on('click', function() {
+                                    // 调用下载接口
+                                    window.location.href = '/downloadExcel?filePath=' + encodeURIComponent(res.data.excelPath);
+                                    layer.closeAll();
+                                });
+                            }
+                        });
+                    } else {
+                        // 解析失败
+                        layer.open({
+                            type: 1,
+                            title: '解析失败',
+                            area: ['600px', '400px'],
+                            content: `
+                                <div style="padding: 20px;">
+                                    <p style="color: #F56C6C;">${res.msg}</p>
+                                    ${res.data && res.data.errorDetails ?
+                                '<div style="margin-top: 10px;"><p>错误详情：</p>' +
+                                '<pre style="background: #f5f5f5; padding: 10px; height: 200px; overflow: auto;">' +
+                                res.data.errorDetails +
+                                '</pre></div>' : ''
+                            }
+                                </div>
+                            `
+                        });
+                    }
+                },
+                error: function(xhr, status, error) {
+                    layer.close(loadIndex);
+                    layer.msg('请求失败，请重试');
+                    console.error('解析请求错误:', error);
+                }
+            });
+        }
     });
 </script>
 </body>
